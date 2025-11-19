@@ -1,0 +1,8 @@
+wire sense information
+ wire -0.03 2.4 0 a
+ wire 0.03 1.6 0 a
+ wire -0.03 0.8 0 a
+ wire 0.03 -2.22045e-16 0 a
+ wire -0.03 -0.8 0 a
+ wire 0.03 -1.6 0 a
+ wire -0.03 -2.4 0 a

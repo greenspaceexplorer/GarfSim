@@ -116,9 +116,9 @@ int main(int argc, char * argv[]) {
   gas->SetPressure(pressure);
   gas->SetComposition("co2", 85, "ar", 15);
 
-//  gas->LoadGasFile("co2_90_AR_10_T273.gas");
+ gas->LoadGasFile("co2_90_AR_10_T273.gas");
 //  gas->LoadGasFile("keith_co2_85_AR_15_T273.gas");
-  gas->LoadGasFile("Flight2024_P_755.038_T_288.15_.gas");
+  // gas->LoadGasFile("Flight2024_P_755.038_T_288.15_.gas");
 
   // lets just print out the drift velocity to a file?
 

@@ -1,31 +1,88 @@
 OBJDIR  = $(GARFIELD_HOME)/build/Object
 SRCDIR  = $(GARFIELD_HOME)/Source
-INCDIR  = $(GARFIELD_HOME)/install/include
+GARFIELD_INSTALL_INCDIR  = $(GARFIELD_HOME)/install/include
+GARFIELD_SOURCE_INCDIR   = $(GARFIELD_HOME)/Include
 HEEDDIR = $(GARFIELD_HOME)/Heed
-LIBDIR  = $(GARFIELD_HOME)/install/lib64
+GARFIELD_INSTALL_LIB64   = $(GARFIELD_HOME)/install/lib64
+GARFIELD_INSTALL_LIB     = $(GARFIELD_HOME)/install/lib
+GARFIELD_BUILD_LIB       = $(GARFIELD_HOME)/build
 DCsimINCDIR  = $(DCsim_HOME)/Include
 DCsimLIBDIR  = $(DCsim_HOME)/Library
 
+GARFIELD_INCDIRS = $(wildcard $(GARFIELD_INSTALL_INCDIR)) \
+                   $(wildcard $(GARFIELD_INSTALL_INCDIR)/Garfield) \
+                   $(wildcard $(GARFIELD_SOURCE_INCDIR)) \
+                   $(wildcard $(GARFIELD_SOURCE_INCDIR)/Garfield)
+GARFIELD_LIBDIRS = $(wildcard $(GARFIELD_INSTALL_LIB64)) $(wildcard $(GARFIELD_INSTALL_LIB)) $(wildcard $(GARFIELD_BUILD_LIB))
+GFORTRAN_LIB := $(shell gfortran -print-file-name=libgfortran.dylib 2>/dev/null)
+GFORTRAN_LIBDIR := 
+ifneq ($(GFORTRAN_LIB),libgfortran.dylib)
+GFORTRAN_LIBDIR := $(dir $(GFORTRAN_LIB))
+endif
+
+UNAME_S := $(shell uname -s)
+WHOLE_ARCHIVE_FLAG := -Wl,--whole-archive
+NO_WHOLE_ARCHIVE_FLAG := -Wl,--no-whole-archive
+ifeq ($(UNAME_S),Darwin)
+WHOLE_ARCHIVE_FLAG :=
+NO_WHOLE_ARCHIVE_FLAG :=
+endif
+
+ifeq (,$(TMPDIR))
+TMPDIR := /tmp
+endif
+ifeq (,$(wildcard $(TMPDIR)))
+TMPDIR := /tmp
+endif
+ifeq (,$(DARWIN_USER_TEMP_DIR))
+DARWIN_USER_TEMP_DIR := $(TMPDIR)
+endif
+export TMPDIR
+export DARWIN_USER_TEMP_DIR
+
 # Compiler (and Linker)
-CXX = $(shell root-config --cxx)
+CXX ?= $(shell root-config --cxx)
+
+# Detect compiler flavor to set up OpenMP flags.
+CXX_VERSION := $(shell $(CXX) --version 2>/dev/null | head -n 1)
+BREW := $(shell command -v brew 2>/dev/null)
+LIBOMP_PREFIX :=
+ifneq ($(BREW),)
+LIBOMP_PREFIX := $(shell $(BREW) --prefix libomp 2>/dev/null)
+endif
+OPENMP_CXXFLAGS := -fopenmp
+OPENMP_LDLIBS :=
+ifneq (,$(findstring clang,$(CXX_VERSION)))
+OPENMP_CXXFLAGS := -Xpreprocessor -fopenmp
+ifneq ($(LIBOMP_PREFIX),)
+OPENMP_CXXFLAGS += -I$(LIBOMP_PREFIX)/include
+OPENMP_LDLIBS := -L$(LIBOMP_PREFIX)/lib -lomp
+else
+OPENMP_LDLIBS := -lomp
+endif
+endif
 
 # Compiler (and Linker) flags
 CXXFLAGS  = $(shell root-config --cflags)
-CXXFLAGS += -I$(INCDIR) -I$(DCsimINCDIR) -I$(HEEDDIR)
+CXXFLAGS += $(addprefix -I,$(GARFIELD_INCDIRS)) -I$(DCsimINCDIR) -I$(HEEDDIR)
 # Code Generation and Optimization flags
-CXXFLAGS += -fno-common -fPIC -O3 -fopenmp
+CXXFLAGS += -fno-common -fPIC -O3 $(OPENMP_CXXFLAGS)
 # Warning flags
 CXXFLAGS += -W -Wall -Wextra -Wno-long-long
 # Debug flags
 CXXFLAGS += -g
 
 # Libraries (note: the order matters)
-LDLIBS  = -L$(LIBDIR) -Wl,--whole-archive -lGarfield  -L$(DCsimLIBDIR) -l DCsim -Wl,--no-whole-archive
+LDLIBS  = $(addprefix -L,$(GARFIELD_LIBDIRS)) $(WHOLE_ARCHIVE_FLAG) -lGarfield -lGarfieldRandom -L$(DCsimLIBDIR) -l DCsim $(NO_WHOLE_ARCHIVE_FLAG)
+ifneq ($(GFORTRAN_LIBDIR),)
+LDLIBS += -L$(GFORTRAN_LIBDIR)
+endif
 # Fortran libraries
 LDLIBS += -lgfortran
 # ROOT libraries
 LDLIBS += $(shell root-config --glibs)
 LDLIBS +=  -lGeom
+LDLIBS += $(OPENMP_LDLIBS)
 
 garfroot: garfroot.C
 	$(CXX) $(CXXFLAGS) -o $@ $^  $(LDLIBS)
